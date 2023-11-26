@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -28,6 +29,7 @@ func executeScrapeTask(wg *sync.WaitGroup, scrapetask ScrapeTask, retryScrapeTas
 	log.Printf("Executing scrape task %s\n", scrapetask.url)
 	resp, err := http.Post("http://localhost:8191/v1", "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
+		log.Printf("Error requesting for %s\n", scrapetask.url)
 		retryScrapeTasksChannel <- scrapetask
 		return
 	}
@@ -35,11 +37,33 @@ func executeScrapeTask(wg *sync.WaitGroup, scrapetask ScrapeTask, retryScrapeTas
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("Error reading response for %s\n", scrapetask.url)
 		retryScrapeTasksChannel <- scrapetask
 		return
 	}
 
-	handleScrapeTaskSuccess(wg, scrapetask, body)
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		log.Printf("Error unmarshalling %s: %s\n\n", scrapetask.url, err)
+		retryScrapeTasksChannel <- scrapetask
+		return
+	}
+
+	if result["status"] != "ok" {
+		log.Printf("Scrape status for %s is %s: %s\n", scrapetask.url, result["status"], result["message"])
+		retryScrapeTasksChannel <- scrapetask
+		return
+	}
+
+	pretty_resp, err := json.MarshalIndent(result, "", " ")
+	if err != nil {
+		log.Printf("Error marshalling %s: %s\n\n", scrapetask.url, err)
+		retryScrapeTasksChannel <- scrapetask
+		return
+	}
+
+	handleScrapeTaskSuccess(wg, scrapetask, pretty_resp)
 	return
 }
 
