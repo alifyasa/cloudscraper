@@ -1,4 +1,4 @@
-# sitescraper
+# Cloudscraper
  
 Scrape websites protected by Cloudflare using [`flaresolverr/flaresolverr`](https://github.com/FlareSolverr/FlareSolverr)
 
